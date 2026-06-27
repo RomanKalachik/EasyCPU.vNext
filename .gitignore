@@ -398,10 +398,10 @@ FodyWeavers.xsd
 *.msp
 
 # JetBrains Rider
-*.sln.iml
-
-# JetBrains .idea folder
 .idea/
+*.iml
+*.iws
+atlassian-ide-plugin.xml
 
 # macOS system files
 .DS_Store
@@ -412,3 +412,4 @@ FodyWeavers.xsd
 .Spotlight-V100
 .Trashes
 Icon?
+.tokensave
