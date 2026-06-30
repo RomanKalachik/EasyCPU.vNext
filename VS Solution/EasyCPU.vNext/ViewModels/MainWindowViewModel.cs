@@ -192,11 +192,12 @@ public partial class MainViewModel : ObservableObject
 
     // ── Esegui ───────────────────────────────────────────────────────────────
 
-    [RelayCommand]
-    private void Compile()
+    // Compila codice e dati. Se ci sono errori li mostra nel pannello Errori e
+    // ritorna false. Se ok inizializza la CPU e ritorna true.
+    private bool DoCompile()
     {
         var codeEditor = _factory.CodeEditor;
-        if (codeEditor == null) return;
+        if (codeEditor == null) return false;
 
         var codeLines = codeEditor.SourceText
             .Replace("\r\n", "\n").Replace("\r", "\n")
@@ -227,32 +228,34 @@ public partial class MainViewModel : ObservableObject
 
         if (instructions == null || memory == null)
         {
+            IsErrorsVisible = true;
+            if (_factory.Errors is { } ep) _factory.SetActiveDockable(ep);
             if (_factory.Registers is { } rv) rv.Dump = "";
             if (_factory.Memory is { } mv) mv.Dump = "";
             if (_factory.Stack is { } sv) sv.Dump = "";
-            return;
+            return false;
         }
 
         _atBreakpoint = false;
         Cpu.Init(instructions, memory, Ambiente.InizializzaRegistri, Ambiente.LoopInfinito);
         SyncBreakpointsToCpu();
         UpdateCurrentSourceLine();
-        RefreshDebugViews();
+        return true;
+    }
+
+    [RelayCommand]
+    private void Compile()
+    {
+        if (DoCompile())
+            RefreshDebugViews();
     }
 
     [RelayCommand]
     private void Run()
     {
-        if (Compiler.InstrToLineMap == null) return;
+        if (!DoCompile()) return;
         try
         {
-            // Per assunzione Fase 1: dopo CpuTrapException, chiamare StepInto prima di Run
-            if (_atBreakpoint)
-            {
-                _atBreakpoint = false;
-                Cpu.StepInto();
-                if (Cpu.stop) { UpdateCurrentSourceLine(); RefreshDebugViews(); return; }
-            }
             Cpu.Run();
         }
         catch (CpuTrapException) { _atBreakpoint = true; }

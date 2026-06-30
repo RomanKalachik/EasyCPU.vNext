@@ -150,11 +150,18 @@ public partial class CodeEditorView : UserControl
         }
         else if (e.Text == "\n")
         {
-            // Enter → nuova riga con MargineSinistro spazi
+            // Enter → nuova riga con lo stesso indent della riga corrente
             e.Handled = true;
-            _editor.TextArea.Document.Insert(
-                _editor.TextArea.Caret.Offset,
-                Environment.NewLine + new string(' ', margin));
+            var doc      = _editor.TextArea.Document;
+            var line     = doc.GetLineByNumber(_editor.TextArea.Caret.Line);
+            var lineText = doc.GetText(line.Offset, line.Length);
+            string indent = "";
+            if (!string.IsNullOrWhiteSpace(lineText))
+            {
+                int leading = lineText.Length - lineText.TrimStart().Length;
+                indent = lineText[..leading];
+            }
+            doc.Insert(_editor.TextArea.Caret.Offset, Environment.NewLine + indent);
         }
     }
 }
