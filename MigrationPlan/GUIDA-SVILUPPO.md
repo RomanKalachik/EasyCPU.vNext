@@ -681,11 +681,11 @@ Esporre `MainVm` su `ErrorsViewModel` con lo stesso pattern di `CodeEditorViewMo
 
 ### Assunzioni e decisioni (registrate durante l'esecuzione — 2026-06-30)
 
-1. **`Avalonia.Controls.DataGrid` non è nel package `Avalonia 12.0.5`**
-   Il tipo `DataGrid` non è nell'assembly `Avalonia.Controls.dll` distribuito con `Avalonia 12.0.5`. È in un package NuGet separato (`Avalonia.Controls.DataGrid`) non installato nel progetto. Per non aggiungere dipendenze, `ErrorsView` usa `ListBox` con `DataTemplate` a tre colonne fisse (Tipo / Riga / Messaggio) e un header manuale (`Border` + `Grid`). La funzionalità è equivalente per un elenco di poche voci. Un vero DataGrid (es. `ProDataGrid`, disponibile su NuGet) può essere aggiunto come miglioramento UX futuro senza impatti sul DoD di Fase 5.
+1. **`Avalonia.Controls.DataGrid` — installato `ProDataGrid 12.0.4`**
+   `DataGrid` non è nell'assembly `Avalonia.Controls.dll` di Avalonia 12.0.5. È stato installato `ProDataGrid 12.0.4` (NuGet), che distribuisce l'assembly `Avalonia.Controls.DataGrid.dll` con la stessa API standard del DataGrid Avalonia. `ErrorsView` usa `DataGrid` con `CanUserResizeColumns="True"`, `AutoGenerateColumns="False"` e tre `DataGridTextColumn` (Tipo / Riga / Messaggio, Width="*" sull'ultima). Il tema si include in `App.xaml` con `<StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.v2.xaml"/>` — usare `Fluent.v2.xaml`, non `Fluent.xaml` (quest'ultimo ha solo `NamespaceInfo` precompilato, non un `Build:` compilato, e causa AVLN2000 a build). Gli errori vengono ordinati per `RigaDisplay` ascendente (secondario: `TipoDisplay`) tramite LINQ in `Compile()` prima di popolare la collection.
 
-2. **`CompilerError` usa campi pubblici, non proprietà — compiled bindings non li supportano**
-   `CompilerError.Msg`, `.Riga`, `.Tipo` sono dichiarati `public string/int` (campi), non proprietà. Il precompiler Avalonia XAML (AVLN2000) non riesce a risolverli con `x:DataType`. Soluzione: `ErrorsView.axaml` porta `x:CompileBindings="False"` sull'intera view, disabilitando il compiled binding. Le view `RegistersView`, `MemoryView`, `StackView` usano invece compiled binding normali (i loro binding puntano a `Dump`, proprietà generata da `[ObservableProperty]`). I due converter (`Int32PlusOneConverter`, `CompilerErrorTipoConverter`) sono in `Views/Converters.cs`.
+2. **`CompilerError` usa campi pubblici, non proprietà — pattern `CompilerErrorAdapter`**
+   `CompilerError.Msg`, `.Riga`, `.Tipo` sono dichiarati `public string/int` (campi), non proprietà. Il precompiler Avalonia XAML (AVLN2000) non riesce a risolverli con `x:DataType`. Tentativi precedenti con `x:CompileBindings="False"` erano inaffidabili con `AvaloniaUseCompiledBindingsByDefault=true` globale (i binding di riflessione su campi ritornavano valori vuoti a runtime). Soluzione definitiva: `CompilerErrorAdapter` — wrapper UI-layer con proprietà C# regolari `TipoDisplay` (stringa "Codice"/"Dati"), `RigaDisplay` (1-based), `Msg`, `Source` (il `CompilerError` originale). `ErrorsViewModel.Errors` è `ObservableCollection<CompilerErrorAdapter>`; il `DataTemplate` usa `x:DataType="vm:CompilerErrorAdapter"` con compiled bindings standard. File `Views/Converters.cs` (con `Int32PlusOneConverter` e `CompilerErrorTipoConverter`) è rimasto ma non è più usato da `ErrorsView`.
 
 3. **`Cpu.DumpMemoria` ritorna `null` a runtime nonostante la firma non-nullable**
    `Cpu.DumpMemoria` è dichiarato `List<string>` (non `List<string>?`) ma restituisce `null` se `this.memoria == null` (CPU non inizializzata). Con `#nullable enable` nel ViewModel il compilatore non avverte. Guard esplicito: `mem is null ? "" : string.Join(...)` in `RefreshDebugViews()`.
@@ -696,14 +696,23 @@ Esporre `MainVm` su `ErrorsViewModel` con lo stesso pattern di `CodeEditorViewMo
 5. **`ErrorsViewModel` ora richiede `MainViewModel` nel costruttore**
    Pattern identico a `CodeEditorViewModel`. `DockFactory.CreateLayout()` aggiornato: `new ErrorsViewModel(_mainVm)`. Il serializer layout Dock 12 non tenta di deserializzare i ViewModel (la serializzazione riguarda solo la struttura Dock); il costruttore con parametro non causa problemi.
 
-6. **`NavigateToError` e `NavigateToLineAction`**
-   `MainViewModel.NavigateToError(CompilerError)` seleziona `CodeEditor` o `DataEditor` in base a `err.Tipo`. L'azione fisica sulla view (`_editor.ScrollTo` + `Caret.Line`) è wired in `SetupEditor` dei rispettivi code-behind come `Action<int>?`. Se il pannello è nascosto (view non ancora creata), l'azione è `null` e la navigazione viene ignorata silenziosamente — comportamento accettabile.
+6. **`NavigateToError`, `NavigateToLineAction` e attivazione pannello**
+   `MainViewModel.NavigateToError(CompilerError)` seleziona `CodeEditor` o `DataEditor` in base a `err.Tipo`, poi:
+   - Chiama `_factory.SetActiveDockable(editor)` per portare il tab in primo piano nel `DocumentDock`.
+   - Invoca `NavigateToLineAction(lineNumber)` (tipo `Action<int>?`) wired in `SetupEditor` dei rispettivi code-behind.
+   Il lambda in `SetupEditor` usa `Document.GetLineByNumber(n)` + `GetText` + `TrimStart()` per posizionare il caret sul primo carattere non-spazio della riga (se la riga è vuota o tutta spazi, caret a colonna 1). Il `Focus()` è differito con `Dispatcher.UIThread.Post(() => _editor.TextArea.Focus())` perché `SetActiveDockable` aggiorna solo la proprietà in modo sincrono — il rendering del tab avviene nel ciclo dispatcher successivo e `Focus()` prima di esso verrebbe ignorato. Se il pannello è nascosto (view non ancora creata), l'azione è `null` e la navigazione viene ignorata silenziosamente.
 
 7. **`Compile()` ora esegue sempre entrambe le compilazioni**
    Nella versione precedente, se `CompilaCodice` falliva si ritornava prima di chiamare `CompilaDati`. Ora entrambe vengono sempre eseguite, e tutti gli errori (codice + dati) vengono mostrati nella `ErrorsView` in un'unica operazione. Il comportamento dell'utente migliora: si vedono tutti gli errori in un colpo solo.
 
 8. **Colonne memoria (hardcoded a 8)**
    Il range principale (0–239, 240 celle) viene dumped con 8 colonne (`DumpMemoria(0, 240, 8)`). Non esiste un `Ambiente.*` per questo valore. Deciso di usare 8 colonne fisse, coerentemente con la visualizzazione tipica dei debugger. La configurabilità è rimandabile a Fase 6.
+
+9. **Double-click su riga `DataGrid` — `DoubleTapped` in XAML non funziona**
+   Registrare `DoubleTapped="handler"` direttamente sul `DataGrid` in XAML non produce l'invocazione dell'handler: il `DataGrid` marca `PointerPressed` come **handled** internamente (per gestire la selezione della riga), impedendo la propagazione agli handler XAML bubble. Soluzione: nell'`ErrorsView.axaml.cs` il costruttore registra il handler in codice con `AddHandler(InputElement.PointerPressedEvent, handler, RoutingStrategies.Bubble, handledEventsToo: true)`. Il flag `handledEventsToo: true` bypassa il filtro sull'evento handled. Il `PointerPressedEventArgs.ClickCount == 2` distingue il double-click dal singolo. Il `SelectedItem` è già aggiornato al secondo click (la selezione avviene al primo).
+
+10. **Ordinamento errori nel `DataGrid`**
+    Gli errori di codice e di dati vengono raccolti in `Compile()`, ordinati via LINQ per `RigaDisplay` ascendente (secondario: `TipoDisplay` per stabilità), poi aggiunti a `ev.Errors`. Ordinamento lato ViewModel, non nel `DataGrid` (le colonne `CanUserSortColumns="False"` per semplicità — la lista è già pre-ordinata).
 
 ---
 
