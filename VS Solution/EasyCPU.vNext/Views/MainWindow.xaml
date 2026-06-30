@@ -164,6 +164,15 @@
             </StackPanel>
         </Border>
 
+        <Border DockPanel.Dock="Bottom"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                Padding="8,3">
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Opacity="0.85"/>
+        </Border>
         <controls:DockControl Layout="{Binding Layout}" Factory="{Binding DockFactory}" />
     </DockPanel>
 </Window>

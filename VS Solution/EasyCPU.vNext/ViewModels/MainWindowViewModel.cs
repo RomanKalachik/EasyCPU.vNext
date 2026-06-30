@@ -30,6 +30,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<int> Breakpoints { get; } = new();
 
     [ObservableProperty] private int _currentSourceLine = -1;
+    [ObservableProperty] private string _statusMessage = "Pronto";
 
     public MainViewModel(SettingsViewModel settings)
     {
@@ -228,6 +229,8 @@ public partial class MainViewModel : ObservableObject
 
         if (instructions == null || memory == null)
         {
+            int n = ev?.Errors.Count ?? 0;
+            StatusMessage = n == 1 ? "Compilazione: 1 errore" : $"Compilazione: {n} errori";
             IsErrorsVisible = true;
             if (_factory.Errors is { } ep) _factory.SetActiveDockable(ep);
             if (_factory.Registers is { } rv) rv.Dump = "";
@@ -236,6 +239,7 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
+        StatusMessage = "Compilazione completata";
         _atBreakpoint = false;
         Cpu.Init(instructions, memory, Ambiente.InizializzaRegistri, Ambiente.LoopInfinito);
         SyncBreakpointsToCpu();
@@ -253,16 +257,42 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Run()
     {
-        if (!DoCompile()) return;
+        if (_atBreakpoint)
+        {
+            // Riprendi dopo un breakpoint: avanza di un'istruzione (StepInto non controlla
+            // breakpoint), poi continua l'esecuzione normale.
+            _atBreakpoint = false;
+            try { Cpu.StepInto(); }
+            catch (CpuException) { UpdateCurrentSourceLine(); RefreshDebugViews(); return; }
+            if (Cpu.stop)
+            {
+                UpdateCurrentSourceLine();
+                RefreshDebugViews();
+                StatusMessage = "Esecuzione terminata";
+                return;
+            }
+        }
+        else
+        {
+            if (!DoCompile()) return;
+        }
+
+        bool loop = false;
         try
         {
             Cpu.Run();
         }
         catch (CpuTrapException) { _atBreakpoint = true; }
-        catch (CpuLoopException) { Cpu.Stop(); } // TODO Fase 6: SospendiWindow
+        catch (CpuLoopException) { Cpu.Stop(); loop = true; } // TODO Fase 6: SospendiWindow
         catch (CpuException) { }
         UpdateCurrentSourceLine();
         RefreshDebugViews();
+        if (loop)
+            StatusMessage = "Ciclo infinito rilevato — esecuzione sospesa";
+        else if (_atBreakpoint)
+            StatusMessage = CurrentSourceLine > 0 ? $"Breakpoint — riga {CurrentSourceLine}" : "Breakpoint raggiunto";
+        else
+            StatusMessage = "Esecuzione terminata";
     }
 
     [RelayCommand] private void RunUntil() { }
@@ -280,6 +310,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuException) { }
         UpdateCurrentSourceLine();
         RefreshDebugViews();
+        StatusMessage = CurrentSourceLine > 0 ? $"Riga {CurrentSourceLine}" : "Esecuzione terminata";
     }
 
     [RelayCommand]
@@ -295,6 +326,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuException) { }
         UpdateCurrentSourceLine();
         RefreshDebugViews();
+        StatusMessage = CurrentSourceLine > 0 ? $"Riga {CurrentSourceLine}" : "Esecuzione terminata";
     }
 
     [RelayCommand]
@@ -310,6 +342,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuException) { }
         UpdateCurrentSourceLine();
         RefreshDebugViews();
+        StatusMessage = CurrentSourceLine > 0 ? $"Riga {CurrentSourceLine}" : "Esecuzione terminata";
     }
 
     [RelayCommand]
@@ -319,6 +352,7 @@ public partial class MainViewModel : ObservableObject
         _atBreakpoint = false;
         CurrentSourceLine = -1;
         RefreshDebugViews();
+        StatusMessage = "Esecuzione interrotta";
     }
 
     [RelayCommand]
