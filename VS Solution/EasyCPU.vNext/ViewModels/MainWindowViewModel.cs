@@ -218,8 +218,8 @@ public partial class MainViewModel : ObservableObject
         if (ev != null)
         {
             ev.Errors.Clear();
-            foreach (var e in codeErrors ?? []) ev.Errors.Add(e);
-            foreach (var e in dataErrors ?? []) ev.Errors.Add(e);
+            foreach (var e in codeErrors ?? []) ev.Errors.Add(new CompilerErrorAdapter(e));
+            foreach (var e in dataErrors ?? []) ev.Errors.Add(new CompilerErrorAdapter(e));
         }
 
         if (instructions == null || memory == null)

@@ -2,7 +2,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
-using EasyCpu.Assembler.Parsing;
 using EasyCPU.vNext.ViewModels;
 
 namespace EasyCPU.vNext.Views;
@@ -23,7 +22,7 @@ public partial class ErrorsView : UserControl
     {
         if (DataContext is not ErrorsViewModel vm) return;
         if (sender is not ListBox listBox) return;
-        if (listBox.SelectedItem is not CompilerError err) return;
-        vm.MainVm.NavigateToError(err);
+        if (listBox.SelectedItem is not CompilerErrorAdapter item) return;
+        vm.MainVm.NavigateToError(item.Source);
     }
 }
