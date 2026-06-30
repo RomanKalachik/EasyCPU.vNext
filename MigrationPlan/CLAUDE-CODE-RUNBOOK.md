@@ -165,6 +165,7 @@ I dettagli completi (passi puntuali, problemi noti) sono in `GUIDA-SVILUPPO.md`:
   4. Il nome risorsa embedded è `EasyCPU.vNext.Resources.EasyCPU.xshd` (RootNamespace `EasyCPU.vNext` + cartella `Resources`).
   5. Lo stesso `.xshd` è applicato anche a `DataEditorView` (colora numeri, hex ed etichette nella sezione dati).
   6. Colori pensati per tema Light (default); su tema Dark rimangono leggibili ma non ottimali — miglioramento estetico rimandato a scelta futura.
+  7. Colore `OpcodeArith` aggiornato a `#5D2906` (marrone scuro) su richiesta; il valore originale era `#E65100` (arancio). Modifica solo in `EasyCPU.xshd`.
 
 ### Fase 5 — Pannelli (contenuto) ✅ COMPLETATA (2026-06-30)
 - **Tocca**: `RegistersView/MemoryView/StackView/ErrorsView` (XAML + code-behind) + `RegistersViewModel/MemoryViewModel/StackViewModel/ErrorsViewModel` + `MainViewModel` + `CodeEditorViewModel` + `DataEditorViewModel` + `CodeEditorView.axaml.cs` + `DataEditorView.axaml.cs` + nuovo `Views/Converters.cs`.
@@ -178,6 +179,8 @@ I dettagli completi (passi puntuali, problemi noti) sono in `GUIDA-SVILUPPO.md`:
   5. `ErrorsViewModel` ora ha un costruttore con `MainViewModel mainVm` (come `CodeEditorViewModel`). `DockFactory.CreateLayout()` aggiornato di conseguenza.
   6. `NavigateToError(CompilerError)` su `MainViewModel`: chiama `_factory.SetActiveDockable(editor)` per portare in primo piano il tab, poi invoca `NavigateToLineAction(lineNumber)`. Il caret viene posizionato sul primo carattere non-spazio della riga (via `TrimStart`); il focus all'editor è differito con `Dispatcher.UIThread.Post(() => _editor.TextArea.Focus())` perché il tab switch del Dock è asincrono. Se il pannello è nascosto (view non creata), l'azione è `null` e la navigazione è ignorata silenziosamente.
   7. Double-click su riga in `ErrorsView` — `DoubleTapped="handler"` in XAML non funziona con `DataGrid`: il DataGrid marca `PointerPressed` come handled internamente. Fix: `AddHandler(InputElement.PointerPressedEvent, handler, RoutingStrategies.Bubble, handledEventsToo: true)` registrato in code-behind nel costruttore di `ErrorsView`. Il `PointerPressedEventArgs.ClickCount == 2` distingue il double-click.
+  8. **Barra di stato**: `[ObservableProperty] private string _statusMessage` in `MainViewModel`. UI: `Border DockPanel.Dock="Bottom"` con `TextBlock` in **entrambi** `MainWindow.xaml` (desktop) e `MainView.axaml` (single-view), **prima** del `DockControl` (ordine obbligatorio in `DockPanel`). Messaggi in: `DoCompile`, `Run`, `StepInto/Over/Out`, `Stop`.
+  9. **"Avvia" riprende da breakpoint**: se `_atBreakpoint`, il comando `Run` chiama `Cpu.StepInto()` (avanza senza controllare breakpoint) poi `Cpu.Run()` (se non ancora `stop`). Evita il ri-trap immediato sullo stesso IP. Se la CPU termina durante lo step si aggiornano le viste senza chiamare `Run()`.
 
 ### Fase 6 — Dialog, opzioni (MVVM), formato file
 - **Tocca**: `SettingsViewModel` (singleton, creato in Fase 2) + `OpzioniWindow`, `SospendiWindow`, integrazione `IStorageProvider`, astrazione `ISourceSerializer` con `EasyFileSerializer` (nuovo, default) e `LegacyAsSerializer` (sola lettura) in `EasyCpu.Backend`; adeguare `Ambiente.FiltroFileDialog`/`NomeNuovoFile`.

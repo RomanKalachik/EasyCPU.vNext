@@ -493,7 +493,7 @@ Lo stato vivo (dump registri/memoria/stack, errori) vive in `MainViewModel`; i p
    | Categoria | Opcode | Colore |
    |---|---|---|
    | Movimento | `mov movs` | `#1565C0` blu |
-   | Aritmetica | `add sub mul div inc dec neg` | `#E65100` arancio |
+   | Aritmetica | `add sub mul div inc dec neg` | `#5D2906` marrone scuro |
    | Logica/shift | `and or xor not shl shr` | `#0F766E` teal |
    | Confronto | `cmp` | `#AD1457` rosa scuro |
    | Stack | `push pop pushf popf` | `#4527A0` indaco |
@@ -713,6 +713,12 @@ Esporre `MainVm` su `ErrorsViewModel` con lo stesso pattern di `CodeEditorViewMo
 
 10. **Ordinamento errori nel `DataGrid`**
     Gli errori di codice e di dati vengono raccolti in `Compile()`, ordinati via LINQ per `RigaDisplay` ascendente (secondario: `TipoDisplay` per stabilità), poi aggiunti a `ev.Errors`. Ordinamento lato ViewModel, non nel `DataGrid` (le colonne `CanUserSortColumns="False"` per semplicità — la lista è già pre-ordinata).
+
+11. **Barra di stato — `StatusMessage` in `MainViewModel`**
+    Aggiunta proprietà `[ObservableProperty] private string _statusMessage = "Pronto"` in `MainViewModel`. La barra è un `Border` con `DockPanel.Dock="Bottom"` aggiunto in **entrambi** `MainWindow.xaml` (percorso desktop) e `MainView.axaml` (percorso single-view/mobile), posizionato **prima** del `DockControl` (nel `DockPanel` l'ordine conta: l'ultimo figlio senza `Dock` esplicito riempie lo spazio residuo). Messaggi impostati in: `DoCompile()` (errori e successo), `Run()` (terminato / breakpoint / ciclo infinito), `StepInto/Over/Out` (riga corrente), `Stop()` (interrotto).
+
+12. **"Avvia" riprende l'esecuzione da un breakpoint senza ricompilare**
+    Se `_atBreakpoint == true`, il comando `Run` **non** chiama `DoCompile()`. Invece: (a) chiama `Cpu.StepInto()` per avanzare oltre l'istruzione che ha causato il trap — `StepInto` non controlla i breakpoint, evitando il ri-trap immediato sullo stesso indirizzo; (b) se dopo lo step la CPU non è ferma (`!Cpu.stop`), chiama `Cpu.Run()` normalmente per proseguire fino al prossimo breakpoint o alla fine. Se il programma termina durante lo step, si aggiornano le viste e si imposta il messaggio di stato senza chiamare `Run()`. Il ramo `else` (compilazione da zero) rimane invariato.
 
 ---
 
