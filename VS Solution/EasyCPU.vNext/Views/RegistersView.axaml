@@ -3,5 +3,8 @@
              xmlns:vm="clr-namespace:EasyCPU.vNext.ViewModels"
              x:Class="EasyCPU.vNext.Views.RegistersView"
              x:DataType="vm:RegistersViewModel">
-    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Registri" />
+    <ScrollViewer>
+        <TextBlock Text="{Binding Dump}" FontFamily="Courier New,Monospace" FontSize="12"
+                   Margin="4" TextWrapping="NoWrap" />
+    </ScrollViewer>
 </UserControl>

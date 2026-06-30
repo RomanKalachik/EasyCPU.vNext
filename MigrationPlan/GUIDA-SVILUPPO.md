@@ -679,6 +679,32 @@ Esporre `MainVm` su `ErrorsViewModel` con lo stesso pattern di `CodeEditorViewMo
 - **Colonne memoria**: `DumpMemoria` per la memoria principale (0–239) non ha un `Ambiente.*` di riferimento. Usare un valore fisso (es. 8) e documentarlo; la configurabilità è rimandabile a Fase 6.
 - **`CompilerError.Riga` 0-based nel DataGrid**: la colonna Riga deve mostrare `Riga + 1`. Opzioni: converter `IValueConverter`, proprietà calcolata `RigaDisplay` su `CompilerError` (tocca il core — evitare), o usare `StringFormat` con una classe di wrapping. Il converter è la soluzione più pulita in Avalonia 12.
 
+### Assunzioni e decisioni (registrate durante l'esecuzione — 2026-06-30)
+
+1. **`Avalonia.Controls.DataGrid` non è nel package `Avalonia 12.0.5`**
+   Il tipo `DataGrid` non è nell'assembly `Avalonia.Controls.dll` distribuito con `Avalonia 12.0.5`. È in un package NuGet separato (`Avalonia.Controls.DataGrid`) non installato nel progetto. Per non aggiungere dipendenze, `ErrorsView` usa `ListBox` con `DataTemplate` a tre colonne fisse (Tipo / Riga / Messaggio) e un header manuale (`Border` + `Grid`). La funzionalità è equivalente per un elenco di poche voci. Un vero DataGrid (es. `ProDataGrid`, disponibile su NuGet) può essere aggiunto come miglioramento UX futuro senza impatti sul DoD di Fase 5.
+
+2. **`CompilerError` usa campi pubblici, non proprietà — compiled bindings non li supportano**
+   `CompilerError.Msg`, `.Riga`, `.Tipo` sono dichiarati `public string/int` (campi), non proprietà. Il precompiler Avalonia XAML (AVLN2000) non riesce a risolverli con `x:DataType`. Soluzione: `ErrorsView.axaml` porta `x:CompileBindings="False"` sull'intera view, disabilitando il compiled binding. Le view `RegistersView`, `MemoryView`, `StackView` usano invece compiled binding normali (i loro binding puntano a `Dump`, proprietà generata da `[ObservableProperty]`). I due converter (`Int32PlusOneConverter`, `CompilerErrorTipoConverter`) sono in `Views/Converters.cs`.
+
+3. **`Cpu.DumpMemoria` ritorna `null` a runtime nonostante la firma non-nullable**
+   `Cpu.DumpMemoria` è dichiarato `List<string>` (non `List<string>?`) ma restituisce `null` se `this.memoria == null` (CPU non inizializzata). Con `#nullable enable` nel ViewModel il compilatore non avverte. Guard esplicito: `mem is null ? "" : string.Join(...)` in `RefreshDebugViews()`.
+
+4. **`RefreshDebugViews()` — punto di chiamata**
+   Chiamata da: `StepInto`, `StepOver`, `StepOut`, `Run` (incluso il ramo `_atBreakpoint`), `Stop`, `Compile` (dopo `Cpu.Init()` in caso di successo; clear esplicito di `Dump = ""` in caso di errore di compilazione). Non chiamata su `ToggleBreakpoint` né `SyncBreakpointsToCpu` (non cambiano lo stato della CPU).
+
+5. **`ErrorsViewModel` ora richiede `MainViewModel` nel costruttore**
+   Pattern identico a `CodeEditorViewModel`. `DockFactory.CreateLayout()` aggiornato: `new ErrorsViewModel(_mainVm)`. Il serializer layout Dock 12 non tenta di deserializzare i ViewModel (la serializzazione riguarda solo la struttura Dock); il costruttore con parametro non causa problemi.
+
+6. **`NavigateToError` e `NavigateToLineAction`**
+   `MainViewModel.NavigateToError(CompilerError)` seleziona `CodeEditor` o `DataEditor` in base a `err.Tipo`. L'azione fisica sulla view (`_editor.ScrollTo` + `Caret.Line`) è wired in `SetupEditor` dei rispettivi code-behind come `Action<int>?`. Se il pannello è nascosto (view non ancora creata), l'azione è `null` e la navigazione viene ignorata silenziosamente — comportamento accettabile.
+
+7. **`Compile()` ora esegue sempre entrambe le compilazioni**
+   Nella versione precedente, se `CompilaCodice` falliva si ritornava prima di chiamare `CompilaDati`. Ora entrambe vengono sempre eseguite, e tutti gli errori (codice + dati) vengono mostrati nella `ErrorsView` in un'unica operazione. Il comportamento dell'utente migliora: si vedono tutti gli errori in un colpo solo.
+
+8. **Colonne memoria (hardcoded a 8)**
+   Il range principale (0–239, 240 celle) viene dumped con 8 colonne (`DumpMemoria(0, 240, 8)`). Non esiste un `Ambiente.*` per questo valore. Deciso di usare 8 colonne fisse, coerentemente con la visualizzazione tipica dei debugger. La configurabilità è rimandabile a Fase 6.
+
 ---
 
 ## FASE 6 — Dialog e gestione file

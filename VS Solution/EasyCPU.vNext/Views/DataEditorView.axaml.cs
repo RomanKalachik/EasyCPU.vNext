@@ -46,6 +46,15 @@ public partial class DataEditorView : UserControl
             vm.SourceText = _editor.Document.Text;
 
         _editor.TextArea.TextEntering += OnTextEntering;
+
+        vm.NavigateToLineAction = lineNumber =>
+        {
+            if (_editor.Document.LineCount == 0) return;
+            int n = Math.Clamp(lineNumber, 1, _editor.Document.LineCount);
+            _editor.ScrollTo(n, 1);
+            _editor.TextArea.Caret.Line   = n;
+            _editor.TextArea.Caret.Column = 1;
+        };
     }
 
     private void OnTextEntering(object? sender, TextInputEventArgs e)

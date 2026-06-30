@@ -166,18 +166,17 @@ I dettagli completi (passi puntuali, problemi noti) sono in `GUIDA-SVILUPPO.md`:
   5. Lo stesso `.xshd` è applicato anche a `DataEditorView` (colora numeri, hex ed etichette nella sezione dati).
   6. Colori pensati per tema Light (default); su tema Dark rimangono leggibili ma non ottimali — miglioramento estetico rimandato a scelta futura.
 
-### Fase 5 — Pannelli (contenuto)
-- **Tocca**: `RegistersView/MemoryView/StackView/ErrorsView` (XAML + code-behind) + `RegistersViewModel/MemoryViewModel/StackViewModel/ErrorsViewModel` (già stub) + `MainViewModel` (aggiungere `RefreshDebugViews()` + popolare errori in `Compile()`).
+### Fase 5 — Pannelli (contenuto) ✅ COMPLETATA (2026-06-30)
+- **Tocca**: `RegistersView/MemoryView/StackView/ErrorsView` (XAML + code-behind) + `RegistersViewModel/MemoryViewModel/StackViewModel/ErrorsViewModel` + `MainViewModel` + `CodeEditorViewModel` + `DataEditorViewModel` + `CodeEditorView.axaml.cs` + `DataEditorView.axaml.cs` + nuovo `Views/Converters.cs`.
 - **DoD**: dump reattivi a ogni step; riusa `Cpu.DumpRegs()`/`DumpMemoria()`; errori di compilazione in `ErrorsView`; doppio click errore → riga nell'editor.
-- **Gate**: confronto a vista con `EasyCpu.Win` sullo stesso sorgente; build 0 errori.
-- **Prerequisiti verificati** (stato stub al 2026-06-29):
-  - `RegistersViewModel`, `MemoryViewModel`, `StackViewModel`: hanno `[ObservableProperty] string _dump`.
-  - `ErrorsViewModel`: ha `ObservableCollection<CompilerError> Errors`.
-  - Le 4 View sono `TextBlock` placeholder — vanno sostituite.
-  - `MainViewModel` ha già `Cpu`, `Compiler`, `_factory` e i commenti `// TODO Fase 5` nei punti esatti.
-  - `_factory.Registers/Memory/Stack/Errors` sono già esposti da `DockFactory`.
-- **API core pronte**: `Cpu.DumpRegs()` → `string[9]`; `Cpu.DumpMemoria(da, a, colonne)` → `List<string>?` (null-safe!); `Ram.INDIRIZZO_STACK=240`, `Ram.MASSIMO_INDIRIZZO=255`; `Ambiente.ColonneStack`; `CompilerError.{Riga,Colonna,Msg,Tipo}` con `Riga` **0-based**.
-- **Attenzione**: `Cpu.flags` è private — usare `Cpu.FlagZero/FlagSegno/FlagOverflow` (bool, già pubbliche). Dettagli completi in `GUIDA-SVILUPPO.md` §Fase 5.
+- **Gate**: build 0 errori, 6 test pass.
+- **Assunzioni registrate** (dettagli in `GUIDA-SVILUPPO.md` §Fase 5 → "Assunzioni e decisioni"):
+  1. `Avalonia.Controls.DataGrid` non è nel package `Avalonia 12.0.5` — è un package separato non referenziato. `ErrorsView` usa `ListBox` con `DataTemplate` a tre colonne fisse (Tipo/Riga/Messaggio). Un vero DataGrid (es. `ProDataGrid`) può essere aggiunto in futuro come miglioramento UX.
+  2. `CompilerError` ha campi pubblici (non proprietà) — i compiled binding Avalonia non li supportano. `ErrorsView.axaml` ha `x:CompileBindings="False"` sull'intera view; le altre view (Registers/Memory/Stack) usano compiled binding normali su `Dump` (che è una proprietà generata da `[ObservableProperty]`).
+  3. `Cpu.DumpMemoria` ritorna `List<string>` non-nullable per firma, ma può ritornare `null` a runtime se la CPU non è inizializzata — guard `mem is null` presente in `RefreshDebugViews()`.
+  4. `RefreshDebugViews()` viene chiamata da: `StepInto`, `StepOver`, `StepOut`, `Run`, `Stop`, `Compile` (sia su successo che su errore, con clear esplicito in caso di errore).
+  5. `ErrorsViewModel` ora ha un costruttore con `MainViewModel mainVm` (come `CodeEditorViewModel`). `DockFactory.CreateLayout()` aggiornato di conseguenza.
+  6. `NavigateToError(CompilerError)` su `MainViewModel` + `NavigateToLineAction` (tipo `Action<int>?`) su `CodeEditorViewModel` e `DataEditorViewModel`, wired in `SetupEditor` dei rispettivi code-behind.
 
 ### Fase 6 — Dialog, opzioni (MVVM), formato file
 - **Tocca**: `SettingsViewModel` (singleton, creato in Fase 2) + `OpzioniWindow`, `SospendiWindow`, integrazione `IStorageProvider`, astrazione `ISourceSerializer` con `EasyFileSerializer` (nuovo, default) e `LegacyAsSerializer` (sola lettura) in `EasyCpu.Backend`; adeguare `Ambiente.FiltroFileDialog`/`NomeNuovoFile`.

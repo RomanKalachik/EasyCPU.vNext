@@ -1,7 +1,37 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:EasyCPU.vNext.ViewModels"
+             xmlns:converters="clr-namespace:EasyCPU.vNext.Views"
              x:Class="EasyCPU.vNext.Views.ErrorsView"
-             x:DataType="vm:ErrorsViewModel">
-    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Errori" />
+             x:DataType="vm:ErrorsViewModel"
+             x:CompileBindings="False">
+    <UserControl.Resources>
+        <converters:Int32PlusOneConverter x:Key="Int32PlusOneConverter"/>
+        <converters:CompilerErrorTipoConverter x:Key="CompilerErrorTipoConverter"/>
+    </UserControl.Resources>
+    <DockPanel>
+        <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+            <Grid ColumnDefinitions="60,50,*">
+                <TextBlock Grid.Column="0" Text="Tipo"      FontWeight="SemiBold" Margin="8,4"/>
+                <TextBlock Grid.Column="1" Text="Riga"      FontWeight="SemiBold" Margin="4"/>
+                <TextBlock Grid.Column="2" Text="Messaggio" FontWeight="SemiBold" Margin="4"/>
+            </Grid>
+        </Border>
+        <ListBox ItemsSource="{Binding Errors}" SelectionMode="Single"
+                 DoubleTapped="OnErrorDoubleTapped">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnDefinitions="60,50,*">
+                        <TextBlock Grid.Column="0" Margin="8,2" TextTrimming="CharacterEllipsis"
+                                   Text="{Binding Tipo, Converter={StaticResource CompilerErrorTipoConverter}}"/>
+                        <TextBlock Grid.Column="1" Margin="4,2"
+                                   Text="{Binding Riga, Converter={StaticResource Int32PlusOneConverter}}"/>
+                        <TextBlock Grid.Column="2" Margin="4,2" TextTrimming="CharacterEllipsis"
+                                   Text="{Binding Msg}"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
 </UserControl>

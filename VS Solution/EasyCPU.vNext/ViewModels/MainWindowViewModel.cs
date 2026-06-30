@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
+using EasyCpu.Assembler.Memoria;
 using EasyCpu.Assembler.Parsing;
 using EasyCpu.Assembler.Processore;
 using EasyCpu.Common;
@@ -209,16 +210,31 @@ public partial class MainViewModel : ObservableObject
 
         List<CompilerError> codeErrors = null!;
         var instructions = Compiler.CompilaCodice(codeLines, ref codeErrors);
-        if (instructions == null) return; // TODO Fase 5: mostrare errori
 
         List<CompilerError> dataErrors = null!;
         var memory = Compiler.CompilaDati(dataLines, ref dataErrors);
-        if (memory == null) return; // TODO Fase 5: mostrare errori
+
+        var ev = _factory.Errors;
+        if (ev != null)
+        {
+            ev.Errors.Clear();
+            foreach (var e in codeErrors ?? []) ev.Errors.Add(e);
+            foreach (var e in dataErrors ?? []) ev.Errors.Add(e);
+        }
+
+        if (instructions == null || memory == null)
+        {
+            if (_factory.Registers is { } rv) rv.Dump = "";
+            if (_factory.Memory is { } mv) mv.Dump = "";
+            if (_factory.Stack is { } sv) sv.Dump = "";
+            return;
+        }
 
         _atBreakpoint = false;
         Cpu.Init(instructions, memory, Ambiente.InizializzaRegistri, Ambiente.LoopInfinito);
         SyncBreakpointsToCpu();
         UpdateCurrentSourceLine();
+        RefreshDebugViews();
     }
 
     [RelayCommand]
@@ -232,14 +248,15 @@ public partial class MainViewModel : ObservableObject
             {
                 _atBreakpoint = false;
                 Cpu.StepInto();
-                if (Cpu.stop) { UpdateCurrentSourceLine(); return; }
+                if (Cpu.stop) { UpdateCurrentSourceLine(); RefreshDebugViews(); return; }
             }
             Cpu.Run();
         }
         catch (CpuTrapException) { _atBreakpoint = true; }
         catch (CpuLoopException) { Cpu.Stop(); } // TODO Fase 6: SospendiWindow
-        catch (CpuException) { }                 // TODO Fase 5: mostrare errore
+        catch (CpuException) { }
         UpdateCurrentSourceLine();
+        RefreshDebugViews();
     }
 
     [RelayCommand] private void RunUntil() { }
@@ -256,6 +273,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuTrapException) { _atBreakpoint = true; }
         catch (CpuException) { }
         UpdateCurrentSourceLine();
+        RefreshDebugViews();
     }
 
     [RelayCommand]
@@ -270,6 +288,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuTrapException) { _atBreakpoint = true; }
         catch (CpuException) { }
         UpdateCurrentSourceLine();
+        RefreshDebugViews();
     }
 
     [RelayCommand]
@@ -284,6 +303,7 @@ public partial class MainViewModel : ObservableObject
         catch (CpuTrapException) { _atBreakpoint = true; }
         catch (CpuException) { }
         UpdateCurrentSourceLine();
+        RefreshDebugViews();
     }
 
     [RelayCommand]
@@ -292,6 +312,7 @@ public partial class MainViewModel : ObservableObject
         Cpu.Stop();
         _atBreakpoint = false;
         CurrentSourceLine = -1;
+        RefreshDebugViews();
     }
 
     [RelayCommand]
@@ -326,4 +347,31 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void SetThemeLight() => Settings.Theme = AppTheme.Light;
     [RelayCommand] private void SetThemeDark()  => Settings.Theme = AppTheme.Dark;
     [RelayCommand] private void SetThemeBlue()  => Settings.Theme = AppTheme.Blue;
+
+    // ── Debug views ───────────────────────────────────────────────────────────
+
+    private void RefreshDebugViews()
+    {
+        var regs = Cpu.DumpRegs();
+        if (_factory.Registers is { } rv)
+            rv.Dump = string.Join("\n", regs) +
+                      $"\nZ={(Cpu.FlagZero ? 1 : 0)}  S={(Cpu.FlagSegno ? 1 : 0)}  O={(Cpu.FlagOverflow ? 1 : 0)}";
+
+        var mem = Cpu.DumpMemoria(0, Ram.INDIRIZZO_STACK, 8);
+        if (_factory.Memory is { } mv)
+            mv.Dump = mem is null ? "" : string.Join("\n", mem);
+
+        var stack = Cpu.DumpMemoria(Ram.INDIRIZZO_STACK, Ram.MASSIMO_INDIRIZZO + 1, Ambiente.ColonneStack);
+        if (_factory.Stack is { } sv)
+            sv.Dump = stack is null ? "" : string.Join("\n", stack);
+    }
+
+    public void NavigateToError(CompilerError err)
+    {
+        int lineNumber = err.Riga + 1; // 0-based → 1-based
+        if (err.Tipo == CompilerError.CODICE)
+            _factory.CodeEditor?.NavigateToLineAction?.Invoke(lineNumber);
+        else
+            _factory.DataEditor?.NavigateToLineAction?.Invoke(lineNumber);
+    }
 }

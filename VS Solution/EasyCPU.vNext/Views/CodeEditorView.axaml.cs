@@ -83,6 +83,14 @@ public partial class CodeEditorView : UserControl
         vm.SelectAllAction = () => _editor.TextArea.Selection =
             Selection.Create(_editor.TextArea, 0, _editor.Document.TextLength);
         vm.FindAction      = () => SearchPanel.Install(_editor).Open();
+        vm.NavigateToLineAction = lineNumber =>
+        {
+            if (_editor.Document.LineCount == 0) return;
+            int n = Math.Clamp(lineNumber, 1, _editor.Document.LineCount);
+            _editor.ScrollTo(n, 1);
+            _editor.TextArea.Caret.Line   = n;
+            _editor.TextArea.Caret.Column = 1;
+        };
     }
 
     private void CopySelection()

@@ -48,7 +48,7 @@ public class DockFactory : Factory
         Registers  = new RegistersViewModel  { Id = "Registers",  Title = "Registri" };
         Stack      = new StackViewModel      { Id = "Stack",      Title = "Stack" };
         Memory     = new MemoryViewModel     { Id = "Memory",     Title = "Memoria" };
-        Errors     = new ErrorsViewModel     { Id = "Errors",     Title = "Errori" };
+        Errors     = new ErrorsViewModel(_mainVm) { Id = "Errors", Title = "Errori" };
 
         var documentDock = new DocumentDock
         {
